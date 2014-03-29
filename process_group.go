@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"log"
 	"os"
-	"os/user"
 	"strconv"
 	"sync"
 	"syscall"
@@ -13,10 +12,6 @@ import (
 type ProcessGroup struct {
 	set *processSet
 	wg  sync.WaitGroup
-
-	commandPath string
-	sockfile    *os.File
-	user        *user.User
 }
 
 type processSet struct {
@@ -24,16 +19,13 @@ type processSet struct {
 	set map[*os.Process]bool
 }
 
-func MakeProcessGroup(commandPath string, sockfile *os.File, u *user.User) *ProcessGroup {
+func MakeProcessGroup() *ProcessGroup {
 	return &ProcessGroup{
-		set:         newProcessSet(),
-		commandPath: commandPath,
-		sockfile:    sockfile,
-		user:        u,
+		set: newProcessSet(),
 	}
 }
 
-func (self *ProcessGroup) StartProcess() (process *os.Process, err error) {
+func (self *ProcessGroup) StartProcess(c *ProcessConfig) (process *os.Process, err error) {
 	self.wg.Add(1)
 
 	ioReader, ioWriter, err := os.Pipe()
@@ -45,13 +37,13 @@ func (self *ProcessGroup) StartProcess() (process *os.Process, err error) {
 
 	procAttr := &os.ProcAttr{
 		Env:   env,
-		Files: []*os.File{os.Stdin, ioWriter, ioWriter, self.sockfile},
+		Files: []*os.File{os.Stdin, ioWriter, ioWriter, c.sockfile},
 		Sys:   &syscall.SysProcAttr{},
 	}
 
-	if self.user != nil {
-		uid, _ := strconv.Atoi(self.user.Uid)
-		gid, _ := strconv.Atoi(self.user.Gid)
+	if c.user != nil {
+		uid, _ := strconv.Atoi(c.user.Uid)
+		gid, _ := strconv.Atoi(c.user.Gid)
 
 		procAttr.Sys.Credential = &syscall.Credential{
 			Uid: uint32(uid),
@@ -59,8 +51,8 @@ func (self *ProcessGroup) StartProcess() (process *os.Process, err error) {
 		}
 	}
 
-	log.Println("Starting", self.commandPath)
-	process, err = os.StartProcess(self.commandPath, []string{}, procAttr)
+	log.Println("Starting", c.cmdpath)
+	process, err = os.StartProcess(c.cmdpath, []string{}, procAttr)
 	if err != nil {
 		return
 	}

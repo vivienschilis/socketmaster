@@ -15,14 +15,14 @@ import (
 
 const PROGRAM_NAME = "socketmaster"
 
-func handleSignals(processGroup *ProcessGroup, c <-chan os.Signal, startTime int) {
+func handleSignals(processGroup *ProcessGroup, processConfig *ProcessConfig, c <-chan os.Signal, startTime int) {
 	for {
 		signal := <-c // os.Signal
 		syscallSignal := signal.(syscall.Signal)
 
 		switch syscallSignal {
 		case syscall.SIGHUP:
-			process, err := processGroup.StartProcess()
+			process, err := processGroup.StartProcess(processConfig)
 			if err != nil {
 				log.Printf("Could not start new process: %v\n", err)
 			} else {
@@ -95,9 +95,11 @@ func main() {
 		}
 	}
 
+	processConfig := NewProcessConfig(commandPath, sockfile, targetUser)
+
 	// Run the first process
-	processGroup := MakeProcessGroup(commandPath, sockfile, targetUser)
-	_, err = processGroup.StartProcess()
+	processGroup := MakeProcessGroup()
+	_, err = processGroup.StartProcess(processConfig)
 	if err != nil {
 		log.Fatalln("Could not start process", err)
 	}
@@ -105,7 +107,7 @@ func main() {
 	// Monitoring the processes
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
-	go handleSignals(processGroup, c, startTime)
+	go handleSignals(processGroup, processConfig, c, startTime)
 
 	// TODO: Full restart on USR2. Make sure the listener file is not set to SO_CLOEXEC
 	// TODO: Restart processes if they die
