@@ -28,12 +28,16 @@ func MakeProcessGroup() *ProcessGroup {
 func (self *ProcessGroup) StartProcess(c *ProcessConfig) (process *os.Process, err error) {
 	self.wg.Add(1)
 
+  // TODO: Remove that
 	ioReader, ioWriter, err := os.Pipe()
 	if err != nil {
 		return nil, err
 	}
 
-	env := append(os.Environ(), "EINHORN_FDS=3")
+	env := os.Environ()
+	env = append(env, "EINHORN_FDS=3")
+	env = append(env, "LISTEN_FDS=1")
+	// FIXME: LISTEN_PID
 
 	procAttr := &os.ProcAttr{
 		Env:   env,
@@ -60,6 +64,7 @@ func (self *ProcessGroup) StartProcess(c *ProcessConfig) (process *os.Process, e
 	// Add to set
 	self.set.Add(process)
 
+	// TODO: Remove that
 	// Prefix stdout and stderr lines with the [pid] and send it to the log
 	go logOutput(ioReader, process.Pid, self.wg)
 
